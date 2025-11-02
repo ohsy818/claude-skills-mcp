@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 720pt;
+            height: 405pt;
+            background: white;
+            padding: 40pt;
+            font-family: Arial, sans-serif;
+        }
+        h2 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 30pt;
+            border-bottom: 3pt solid #5EA8A7;
+            padding-bottom: 10pt;
+        }
+        .architecture {
+            display: flex;
+            gap: 40pt;
+            align-items: center;
+            margin-top: 20pt;
+        }
+        .component {
+            flex: 1;
+            background: #f4f6f6;
+            border: 2pt solid #5EA8A7;
+            border-radius: 8pt;
+            padding: 20pt;
+            text-align: center;
+        }
+        .component h3 {
+            font-size: 22pt;
+            color: #1C2833;
+            margin-bottom: 15pt;
+            font-weight: bold;
+        }
+        .component .size {
+            font-size: 18pt;
+            color: #5EA8A7;
+            font-weight: bold;
+            margin-bottom: 10pt;
+        }
+        .component ul {
+            list-style: none;
+            text-align: left;
+        }
+        .component li {
+            font-size: 13pt;
+            color: #2E4053;
+            margin-bottom: 8pt;
+            padding-left: 15pt;
+            position: relative;
+        }
+        .component li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #5EA8A7;
+        }
+        .arrow {
+            font-size: 36pt;
+            color: #FE4447;
+            font-weight: bold;
+        }
+        .benefit {
+            background: #FE4447;
+            color: white;
+            padding: 10pt;
+            border-radius: 5pt;
+            font-size: 12pt;
+            margin-top: 10pt;
+        }
+    </style>
+</head>
+<body>
+    <h2>Two-Package 아키텍처</h2>
+    <div class="architecture">
+        <div class="component">
+            <h3>Frontend</h3>
+            <div class="size">~15 MB</div>
+            <ul>
+                <li>즉시 시작 (&lt;5초)</li>
+                <li>MCP 서버 (stdio)</li>
+                <li>툴 스키마 즉시 반환</li>
+                <li>백엔드 자동 다운로드</li>
+            </ul>
+            <div class="benefit">✓ Cursor 타임아웃 해결</div>
+        </div>
+        
+        <div class="arrow">→</div>
+        
+        <div class="component">
+            <h3>Backend</h3>
+            <div class="size">~250 MB</div>
+            <ul>
+                <li>벡터 검색 엔진</li>
+                <li>PyTorch + Transformers</li>
+                <li>MCP 서버 (HTTP)</li>
+                <li>백그라운드 자동 설치</li>
+            </ul>
+            <div class="benefit">✓ 강력한 시맨틱 검색</div>
+        </div>
+    </div>
+</body>
+</html>
+
+

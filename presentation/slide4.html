@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 720pt;
+            height: 405pt;
+            background: white;
+            padding: 40pt;
+            font-family: Arial, sans-serif;
+        }
+        h2 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 30pt;
+            border-bottom: 3pt solid #5EA8A7;
+            padding-bottom: 10pt;
+        }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            gap: 20pt;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 15pt;
+        }
+        .step-number {
+            width: 40pt;
+            height: 40pt;
+            background: #5EA8A7;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20pt;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+            background: #f4f6f6;
+            padding: 15pt;
+            border-radius: 5pt;
+            border-left: 4pt solid #5EA8A7;
+        }
+        .step-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 8pt;
+        }
+        .step-desc {
+            font-size: 14pt;
+            color: #2E4053;
+            line-height: 1.4;
+        }
+        .highlight-box {
+            background: #FE4447;
+            color: white;
+            padding: 15pt;
+            border-radius: 5pt;
+            margin-top: 20pt;
+            text-align: center;
+        }
+        .highlight-box p {
+            font-size: 16pt;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h2>워크플로우</h2>
+    <div class="flow">
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <div class="step-title">Frontend 즉시 시작</div>
+                <div class="step-desc">Cursor가 uvx로 실행하면 5초 이내에 Frontend 시작, 툴 스키마 즉시 반환</div>
+            </div>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <div class="step-title">Backend 백그라운드 다운로드</div>
+                <div class="step-desc">Frontend가 백그라운드에서 Backend 패키지(~250MB) 자동 다운로드 및 설치</div>
+            </div>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <div class="step-title">스킬 로딩 및 인덱싱</div>
+                <div class="step-desc">GitHub에서 스킬 다운로드, 벡터 임베딩 생성, 검색 인덱스 구축</div>
+            </div>
+        </div>
+        
+        <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+                <div class="step-title">시맨틱 검색 실행</div>
+                <div class="step-desc">사용자 쿼리를 임베딩으로 변환, 유사도 기반 관련 스킬 검색 및 반환</div>
+            </div>
+        </div>
+    </div>
+    <div class="highlight-box">
+        <p>전체 프로세스: 첫 실행 60-120초 | 이후 즉시 사용 가능</p>
+    </div>
+</body>
+</html>
+
+

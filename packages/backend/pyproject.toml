@@ -23,9 +23,9 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "mcp>=1.0.0",
     "sentence-transformers>=2.2.0",
-    "numpy>=1.24.0",
+    "numpy>=1.24.0,<2.0.0",
     "httpx>=0.24.0",
-    "torch>=2.0.0; platform_system != 'Linux'",
+    "torch>=2.0.0,<2.3.0; platform_system != 'Linux'",
     "torch>=2.0.0,<3.0.0; platform_system == 'Linux'",
     "starlette>=0.27.0",
     "uvicorn>=0.23.0",

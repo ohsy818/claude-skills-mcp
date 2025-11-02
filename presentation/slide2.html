@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 720pt;
+            height: 405pt;
+            background: white;
+            padding: 40pt;
+            font-family: Arial, sans-serif;
+        }
+        h2 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 30pt;
+            border-bottom: 3pt solid #5EA8A7;
+            padding-bottom: 10pt;
+        }
+        .content {
+            display: flex;
+            gap: 30pt;
+        }
+        .text-col {
+            flex: 1;
+        }
+        ul {
+            list-style: none;
+        }
+        li {
+            font-size: 16pt;
+            color: #2E4053;
+            margin-bottom: 15pt;
+            padding-left: 25pt;
+            position: relative;
+        }
+        li:before {
+            content: "▸";
+            position: absolute;
+            left: 0;
+            color: #5EA8A7;
+            font-weight: bold;
+        }
+        .highlight {
+            background: #5EA8A7;
+            color: white;
+            padding: 20pt;
+            border-radius: 5pt;
+            margin-top: 20pt;
+        }
+        .highlight p {
+            font-size: 14pt;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <h2>프로젝트 개요</h2>
+    <div class="content">
+        <div class="text-col">
+            <ul>
+                <li>Anthropic의 Agent Skills 프레임워크를 MCP로 확장</li>
+                <li>벡터 임베딩 기반 시맨틱 검색</li>
+                <li>123개 이상의 큐레이션된 스킬 제공</li>
+                <li>GitHub 저장소와 로컬 디렉토리 지원</li>
+                <li>API 키 불필요, 완전 로컬 동작</li>
+            </ul>
+            <div class="highlight">
+                <p><strong>핵심 가치:</strong> Anthropic의 Skills 시스템을 Cursor, Codex, GPT-5 등 모든 AI 모델에서 사용 가능하게 만듭니다.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+
+

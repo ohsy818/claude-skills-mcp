@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 720pt;
+            height: 405pt;
+            background: white;
+            padding: 40pt;
+            font-family: Arial, sans-serif;
+        }
+        h2 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 30pt;
+            border-bottom: 3pt solid #5EA8A7;
+            padding-bottom: 10pt;
+        }
+        .stats-container {
+            display: flex;
+            gap: 30pt;
+            margin-bottom: 30pt;
+        }
+        .stat-box {
+            flex: 1;
+            background: linear-gradient(135deg, #5EA8A7 0%, #277884 100%);
+            color: white;
+            padding: 25pt;
+            border-radius: 8pt;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 48pt;
+            font-weight: bold;
+            margin-bottom: 10pt;
+        }
+        .stat-label {
+            font-size: 16pt;
+        }
+        .sources {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20pt;
+        }
+        .source-card {
+            background: #f4f6f6;
+            border-left: 4pt solid #FE4447;
+            padding: 20pt;
+            border-radius: 5pt;
+        }
+        .source-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 10pt;
+        }
+        .source-count {
+            font-size: 24pt;
+            color: #5EA8A7;
+            font-weight: bold;
+            margin-bottom: 10pt;
+        }
+        .source-desc {
+            font-size: 13pt;
+            color: #2E4053;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <h2>로드된 스킬 현황</h2>
+    <div class="stats-container">
+        <div class="stat-box">
+            <div class="stat-number">123</div>
+            <div class="stat-label">총 로드된 스킬</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">2</div>
+            <div class="stat-label">스킬 소스</div>
+        </div>
+    </div>
+    <div class="sources">
+        <div class="source-card">
+            <div class="source-title">Anthropic 공식 스킬</div>
+            <div class="source-count">15개</div>
+            <div class="source-desc">문서 처리, 프레젠테이션, 웹 아티팩트, MCP 빌더, Slack GIF 등</div>
+        </div>
+        <div class="source-card">
+            <div class="source-title">K-Dense AI 과학 스킬</div>
+            <div class="source-count">108개</div>
+            <div class="source-desc">생물정보학, 화학정보학, 딥러닝, 데이터 분석, 과학 데이터베이스 등</div>
+        </div>
+    </div>
+</body>
+</html>
+
+

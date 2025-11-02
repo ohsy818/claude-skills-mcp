@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            width: 720pt;
+            height: 405pt;
+            background: white;
+            padding: 40pt;
+            font-family: Arial, sans-serif;
+        }
+        h2 {
+            font-size: 36pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 30pt;
+            border-bottom: 3pt solid #5EA8A7;
+            padding-bottom: 10pt;
+        }
+        .tools-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20pt;
+        }
+        .tool-card {
+            background: #f4f6f6;
+            border: 2pt solid #5EA8A7;
+            border-radius: 8pt;
+            padding: 20pt;
+            text-align: center;
+        }
+        .tool-icon {
+            font-size: 36pt;
+            margin-bottom: 10pt;
+        }
+        .tool-name {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #1C2833;
+            margin-bottom: 10pt;
+        }
+        .tool-desc {
+            font-size: 12pt;
+            color: #2E4053;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <h2>제공되는 MCP 툴</h2>
+    <div class="tools-grid">
+        <div class="tool-card">
+            <div class="tool-icon">🔍</div>
+            <div class="tool-name">find_helpful_skills</div>
+            <div class="tool-desc">작업 설명을 기반으로 관련 스킬을 시맨틱 검색으로 찾아 랭킹된 후보 반환</div>
+        </div>
+        
+        <div class="tool-card">
+            <div class="tool-icon">📄</div>
+            <div class="tool-name">read_skill_document</div>
+            <div class="tool-desc">스킬의 특정 파일(스크립트, 참조, 자산)을 검색. 패턴 매칭 지원</div>
+        </div>
+        
+        <div class="tool-card">
+            <div class="tool-icon">📋</div>
+            <div class="tool-name">list_skills</div>
+            <div class="tool-desc">로드된 모든 스킬의 전체 목록 반환 (이름, 설명, 소스, 문서 수)</div>
+        </div>
+    </div>
+</body>
+</html>
+
+
