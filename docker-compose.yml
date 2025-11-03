@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    # Option 1: Use pre-built image from GitHub Container Registry
+    image: ghcr.io/jinyoung/claude-skills-mcp-backend:latest
+    
+    # Option 2: Build from source (comment out 'image' above and uncomment below)
+    # build:
+    #   context: .
+    #   dockerfile: packages/backend/Dockerfile
+    
+    container_name: claude-skills-mcp-backend
+    ports:
+      - "8765:8765"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount config file if you want to customize
+      - ./config.example.json:/app/config.json:ro
+      # Optional: mount local skills directory
+      # - ~/.claude/skills:/app/skills:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    command: ["--host", "0.0.0.0", "--port", "8765", "--config", "/app/config.json", "--verbose"]
+
+networks:
+  default:
+    name: claude-skills-network
+

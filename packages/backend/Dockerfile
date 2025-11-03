@@ -19,9 +19,9 @@ RUN cd /app/backend && uv pip install --system .
 # Expose default port
 EXPOSE 8765
 
-# Health check
+# Health check (using python instead of curl to avoid installing extra packages)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8765/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8765/health').read()" || exit 1
 
 # Run backend server
 # Default: local access (127.0.0.1)
