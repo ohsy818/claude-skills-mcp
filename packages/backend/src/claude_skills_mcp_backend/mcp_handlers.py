@@ -177,8 +177,16 @@ class SkillsMCPServer:
                                 "description": "Include a list of available documents (scripts, references, assets) for each skill (default: True)",
                                 "default": True,
                             },
+                            "agent_id": {
+                                "type": "string",
+                                "description": "Agent ID to filter uploaded skills. Public skills (default skills) are always included regardless of this filter.",
+                            },
+                            "tenant_id": {
+                                "type": "string",
+                                "description": "Tenant ID to filter uploaded skills. Public skills (default skills) are always included regardless of this filter.",
+                            },
                         },
-                        "required": ["task_description"],
+                        "required": ["task_description", "agent_id", "tenant_id"],
                     },
                 ),
                 Tool(
@@ -263,6 +271,14 @@ class SkillsMCPServer:
         if not task_description:
             raise ValueError("task_description is required")
 
+        agent_id = arguments.get("agent_id")
+        if not agent_id:
+            raise ValueError("agent_id is required")
+
+        tenant_id = arguments.get("tenant_id")
+        if not tenant_id:
+            raise ValueError("tenant_id is required")
+
         top_k = arguments.get("top_k", self.default_top_k)
         list_documents = arguments.get("list_documents", True)
 
@@ -274,8 +290,10 @@ class SkillsMCPServer:
         if status_msg:
             response_parts.append(status_msg)
 
-        # Perform search
-        results = self.search_engine.search(task_description, top_k)
+        # Perform search with filters
+        results = self.search_engine.search(
+            task_description, top_k, agent_id=agent_id, tenant_id=tenant_id
+        )
 
         # Format results as text
         if not results:
@@ -308,6 +326,10 @@ class SkillsMCPServer:
             response_parts.append(f"\nSkill {i}: {result['name']}")
             response_parts.append(f"\nRelevance Score: {result['relevance_score']:.4f}")
             response_parts.append(f"\nSource: {result['source']}")
+            if result.get("agent_id"):
+                response_parts.append(f"\nAgent ID: {result['agent_id']}")
+            if result.get("tenant_id"):
+                response_parts.append(f"\nTenant ID: {result['tenant_id']}")
             response_parts.append(f"\nDescription: {result['description']}")
 
             # Include document count if available
@@ -588,6 +610,14 @@ async def handle_search_skills(
     if not task_description:
         raise ValueError("task_description is required")
 
+    agent_id = arguments.get("agent_id")
+    if not agent_id:
+        raise ValueError("agent_id is required")
+
+    tenant_id = arguments.get("tenant_id")
+    if not tenant_id:
+        raise ValueError("tenant_id is required")
+
     top_k = arguments.get("top_k", default_top_k)
     list_documents = arguments.get("list_documents", True)
 
@@ -598,8 +628,10 @@ async def handle_search_skills(
     if status_msg:
         response_parts.append(status_msg)
 
-    # Perform search
-    results = search_engine.search(task_description, top_k)
+    # Perform search with filters
+    results = search_engine.search(
+        task_description, top_k, agent_id=agent_id, tenant_id=tenant_id
+    )
 
     if not results:
         if (
@@ -630,6 +662,10 @@ async def handle_search_skills(
         response_parts.append(f"\nSkill {i}: {result['name']}")
         response_parts.append(f"\nRelevance Score: {result['relevance_score']:.4f}")
         response_parts.append(f"\nSource: {result['source']}")
+        if result.get("agent_id"):
+            response_parts.append(f"\nAgent ID: {result['agent_id']}")
+        if result.get("tenant_id"):
+            response_parts.append(f"\nTenant ID: {result['tenant_id']}")
         response_parts.append(f"\nDescription: {result['description']}")
 
         documents = result.get("documents", {})

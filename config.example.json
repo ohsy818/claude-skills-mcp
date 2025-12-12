@@ -13,7 +13,7 @@
     {
       "type": "local",
       "path": "~/.claude/skills",
-      "comment": "Your custom local skills (optional - directory doesn't need to exist)"
+      "comment": "Your custom local skills (optional - directory doesn't need to exist). For Docker/K8s deployments, set SKILLS_STORAGE_PATH env var to override (e.g., /app/skills)"
     }
   ],
   "embedding_model": "all-MiniLM-L6-v2",

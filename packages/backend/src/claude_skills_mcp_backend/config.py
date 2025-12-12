@@ -19,7 +19,7 @@ DEFAULT_CONFIG = {
         },
         {
             "type": "local",
-            "path": "~/.claude/skills",
+            "path": "~/.claude/skills",  # Default path, can be overridden by SKILLS_STORAGE_PATH env var
         },
     ],
     "embedding_model": "all-MiniLM-L6-v2",

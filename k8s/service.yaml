@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: claude-skills
+  namespace: dev
+  labels:
+    app: claude-skills
+spec:
+  type: ClusterIP
+  selector:
+    app: claude-skills
+  ports:
+    - port: 8765
+      protocol: TCP
+      targetPort: 8765

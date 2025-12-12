@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-skills
+  namespace: dev
+  labels:
+    app: claude-skills
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: claude-skills
+  template:
+    metadata:
+      labels:
+        app: claude-skills
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      containers:
+        - name: claude-skills
+          image: ghcr.io/uengine-oss/claude-skills:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--host", "0.0.0.0", "--port", "8765"]
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: SKILLS_STORAGE_PATH
+              value: "/app/skills"
+          ports:
+            - containerPort: 8765
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8765
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8765
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 512Mi
+          volumeMounts:
+            - name: skills-storage
+              mountPath: /app/skills
+      volumes:
+        - name: skills-storage
+          persistentVolumeClaim:
+            claimName: claude-skills-storage
+      tolerations:
+        - effect: NoSchedule
+          key: kubernetes.io/arch
+          operator: Equal
+          value: amd64
+        - effect: NoSchedule
+          key: cloud.google.com/gke-spot
+          operator: Equal
+          value: "true"
+

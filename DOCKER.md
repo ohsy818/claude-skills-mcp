@@ -47,30 +47,28 @@ docker-compose up -d --build
 docker pull ghcr.io/jinyoung/claude-skills-mcp-backend:latest
 
 # 컨테이너 실행
-docker run -d \
-  -p 8765:8765 \
-  --name claude-skills-backend \
-  ghcr.io/jinyoung/claude-skills-mcp-backend:latest
+docker run -d -p 8765:8765 --name claude-skills-backend ghcr.io/jinyoung/claude-skills-mcp-backend:latest
 ```
 
 #### Option B: 소스에서 빌드
 
 ```bash
 # 이미지 빌드 (프로젝트 루트에서)
-docker build -t claude-skills-mcp-backend -f packages/backend/Dockerfile .
+docker build -t claude-skills -f packages/backend/Dockerfile .
+docker build -t ghcr.io/uengine-oss/claude-skills:latest -f packages/backend/Dockerfile .
+docker push ghcr.io/uengine-oss/claude-skills:latest
+
+docker tag claude-skills:latest ghcr.io/uengine-oss/claude-skills:latest
 
 # 컨테이너 실행
-docker run -d \
-  -p 8765:8765 \
-  --name claude-skills-backend \
-  claude-skills-mcp-backend
+docker run -d -p 8765:8765 --name claude-skills claude-skills
 
 # 로그 확인
-docker logs -f claude-skills-backend
+docker logs -f claude-skills
 
 # 중지
-docker stop claude-skills-backend
-docker rm claude-skills-backend
+docker stop claude-skills
+docker rm claude-skills
 ```
 
 ## 테스트
@@ -136,28 +134,43 @@ docker-compose up -d
 - `auto_update_enabled`: 자동 업데이트 활성화
 - `github_api_token`: GitHub API 토큰 (선택사항, rate limit 증가)
 
-### 로컬 스킬 디렉토리 마운트
+### 업로드된 스킬 영구 저장 (중요!)
 
-로컬 스킬을 사용하려면 `docker-compose.yml`의 volumes 섹션 주석을 해제하세요:
+**업로드된 스킬이 컨테이너 재시작 후에도 유지되도록 하려면 영구 볼륨이 필요합니다.**
+
+`docker-compose.yml`에는 이미 영구 볼륨이 설정되어 있습니다:
+
+```yaml
+volumes:
+  - claude-skills-data:/app/skills  # Named volume (영구 저장)
+```
+
+이 볼륨은 `claude-skills-data`라는 이름의 Docker 볼륨으로, 컨테이너가 삭제되어도 데이터가 유지됩니다.
+
+**환경 변수 설정:**
+- `SKILLS_STORAGE_PATH=/app/skills` (이미 설정됨)
+- 이 환경 변수가 설정되면 업로드된 스킬이 이 경로에 저장됩니다.
+
+**확인 방법:**
+```bash
+# 볼륨 확인
+docker volume ls | grep claude-skills-data
+
+# 볼륨 내용 확인
+docker run --rm -v claude-skills-data:/data alpine ls -la /data
+```
+
+### 로컬 스킬 디렉토리 마운트 (읽기 전용)
+
+기존 로컬 스킬을 읽기 전용으로 마운트하려면:
 
 ```yaml
 volumes:
   - ./config.example.json:/app/config.json:ro
-  - ~/.claude/skills:/app/skills:ro  # 주석 해제
+  - ~/.claude/skills:/app/skills:ro  # 읽기 전용 마운트
 ```
 
-그리고 `config.json`에서 로컬 경로를 `/app/skills`로 변경:
-
-```json
-{
-  "skill_sources": [
-    {
-      "type": "local",
-      "path": "/app/skills"
-    }
-  ]
-}
-```
+**주의:** 읽기 전용(`:ro`) 마운트는 업로드 기능을 사용할 수 없습니다. 업로드 기능을 사용하려면 위의 영구 볼륨 방식을 사용하세요.
 
 ## 리소스 요구사항
 
@@ -273,8 +286,18 @@ docker-compose up -d
 # 설정 파일 백업
 cp config.json config.json.backup
 
+# 업로드된 스킬 백업 (중요!)
+docker run --rm -v claude-skills-data:/data -v $(pwd):/backup alpine tar czf /backup/skills-backup.tar.gz -C /data .
+
 # 캐시 백업 (선택사항)
 docker cp claude-skills-mcp-backend:/tmp/claude_skills_mcp_cache ./cache_backup
+```
+
+### 복원
+
+```bash
+# 스킬 복원
+docker run --rm -v claude-skills-data:/data -v $(pwd):/backup alpine tar xzf /backup/skills-backup.tar.gz -C /data
 ```
 
 ## 이미지 정보

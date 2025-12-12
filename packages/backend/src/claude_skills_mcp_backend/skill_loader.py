@@ -30,6 +30,10 @@ class Skill:
         Full content of the SKILL.md file.
     source : str
         Origin of the skill (GitHub URL or local path).
+    agent_id : str | None
+        Agent ID for agent-specific skills (optional).
+    tenant_id : str | None
+        Tenant ID for multi-tenant support (optional).
     documents : dict[str, dict[str, Any]]
         Additional documents from the skill directory.
         Keys are relative paths, values contain metadata and content.
@@ -47,6 +51,8 @@ class Skill:
         source: str,
         documents: dict[str, dict[str, Any]] | None = None,
         document_fetcher: Callable | None = None,
+        agent_id: str | None = None,
+        tenant_id: str | None = None,
     ):
         self.name = name
         self.description = description
@@ -55,6 +61,8 @@ class Skill:
         self.documents = documents or {}
         self._document_fetcher = document_fetcher
         self._document_cache = {}
+        self.agent_id = agent_id
+        self.tenant_id = tenant_id
 
     def get_document(self, doc_path: str) -> dict[str, Any] | None:
         """Fetch document content on-demand with caching.
@@ -100,13 +108,18 @@ class Skill:
         dict[str, Any]
             Dictionary with skill information.
         """
-        return {
+        result = {
             "name": self.name,
             "description": self.description,
             "content": self.content,
             "source": self.source,
             "documents": self.documents,
         }
+        if self.agent_id is not None:
+            result["agent_id"] = self.agent_id
+        if self.tenant_id is not None:
+            result["tenant_id"] = self.tenant_id
+        return result
 
 
 def parse_skill_md(content: str, source: str) -> Skill | None:

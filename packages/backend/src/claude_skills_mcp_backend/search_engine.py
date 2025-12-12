@@ -118,7 +118,13 @@ class SkillSearchEngine:
                 f"Successfully added {len(skills)} skills. Total: {len(self.skills)} skills"
             )
 
-    def search(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
+    def search(
+        self,
+        query: str,
+        top_k: int = 3,
+        agent_id: str | None = None,
+        tenant_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Search for the most relevant skills based on a query.
 
         Parameters
@@ -127,6 +133,10 @@ class SkillSearchEngine:
             The task description or query to search for.
         top_k : int, optional
             Number of top results to return, by default 3.
+        agent_id : str | None, optional
+            Filter results by agent ID. If None, no agent filtering is applied.
+        tenant_id : str | None, optional
+            Filter results by tenant ID. If None, no tenant filtering is applied.
 
         Returns
         -------
@@ -138,26 +148,60 @@ class SkillSearchEngine:
                 logger.warning("No skills indexed, returning empty results")
                 return []
 
-            # Ensure top_k doesn't exceed available skills
-            top_k = min(top_k, len(self.skills))
+            # Apply filters to get candidate skills
+            # Note: Skills with agent_id=None and tenant_id=None are considered "public" skills
+            # and are always included in search results regardless of filters.
+            # Uploaded skills (with agent_id or tenant_id) are only included if filters match.
+            candidate_indices = []
+            for idx, skill in enumerate(self.skills):
+                # Check if this is a public skill (no agent_id or tenant_id)
+                is_public_skill = skill.agent_id is None and skill.tenant_id is None
+                
+                # Public skills are always included (no filtering)
+                if is_public_skill:
+                    candidate_indices.append(idx)
+                    continue
+                
+                # For uploaded skills (non-public), they must match the provided filters
+                # Both agent_id and tenant_id must match for uploaded skills
+                if skill.agent_id != agent_id or skill.tenant_id != tenant_id:
+                    continue
+                
+                # Skill matches the filters
+                candidate_indices.append(idx)
 
-            logger.info(f"Searching for: '{query}' (top_k={top_k})")
+            if not candidate_indices:
+                logger.info(
+                    f"No skills match filters (agent_id={agent_id}, tenant_id={tenant_id})"
+                )
+                return []
+
+            # Ensure top_k doesn't exceed available candidate skills
+            top_k = min(top_k, len(candidate_indices))
+
+            logger.info(
+                f"Searching for: '{query}' (top_k={top_k}, agent_id={agent_id}, tenant_id={tenant_id})"
+            )
 
             # Generate embedding for the query
             model = self._ensure_model_loaded()
             query_embedding = model.encode([query], convert_to_numpy=True)[0]
 
-            # Compute cosine similarity
+            # Compute cosine similarity for all skills
             similarities = self._cosine_similarity(query_embedding, self.embeddings)
 
-            # Get top-k indices
-            top_indices = np.argsort(similarities)[::-1][:top_k]
+            # Get similarities for candidate skills only
+            candidate_similarities = similarities[candidate_indices]
+
+            # Get top-k indices from candidates
+            top_candidate_indices = np.argsort(candidate_similarities)[::-1][:top_k]
 
             # Build results
             results = []
-            for idx in top_indices:
-                skill = self.skills[idx]
-                score = float(similarities[idx])
+            for candidate_idx in top_candidate_indices:
+                original_idx = candidate_indices[candidate_idx]
+                skill = self.skills[original_idx]
+                score = float(candidate_similarities[candidate_idx])
 
                 result = skill.to_dict()
                 result["relevance_score"] = score

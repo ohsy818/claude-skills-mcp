@@ -3,23 +3,25 @@ version: '3.8'
 services:
   backend:
     # Option 1: Use pre-built image from GitHub Container Registry
-    image: ghcr.io/jinyoung/claude-skills-mcp-backend:latest
+    image: ghcr.io/uengine-oss/claude-skills:latest
     
     # Option 2: Build from source (comment out 'image' above and uncomment below)
     # build:
     #   context: .
     #   dockerfile: packages/backend/Dockerfile
     
-    container_name: claude-skills-mcp-backend
+    container_name: claude-skills
     ports:
       - "8765:8765"
     environment:
       - PYTHONUNBUFFERED=1
+      - SKILLS_STORAGE_PATH=/app/skills
     volumes:
       # Mount config file if you want to customize
       - ./config.example.json:/app/config.json:ro
-      # Optional: mount local skills directory
-      # - ~/.claude/skills:/app/skills:ro
+      # Persistent storage for uploaded skills (required for skill uploads to persist)
+      # This volume persists uploaded skills across container restarts
+      - claude-skills-data:/app/skills
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8765/health').read()"]
       interval: 30s
@@ -28,6 +30,11 @@ services:
       start_period: 60s
     restart: unless-stopped
     command: ["--host", "0.0.0.0", "--port", "8765", "--config", "/app/config.json", "--verbose"]
+
+volumes:
+  # Named volume for persistent skill storage
+  # This ensures uploaded skills persist across container restarts
+  claude-skills-data:
 
 networks:
   default:
