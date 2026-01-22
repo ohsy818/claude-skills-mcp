@@ -17,6 +17,8 @@ Claude Skills MCP Backend에서 제공하는 모든 HTTP API 엔드포인트 목
 7. [스킬 파일 조회](#7-스킬-파일-조회)
 8. [스킬 파일 업데이트](#8-스킬-파일-업데이트)
 9. [스킬 파일 삭제](#9-스킬-파일-삭제)
+10. [스킬 삭제](#10-스킬-삭제)
+11. [멀티테넌트 및 권한 관리](#11-멀티테넌트-및-권한-관리)
 
 ---
 
@@ -76,24 +78,59 @@ POST /skills/upload
 - **Content-Type**: `multipart/form-data`
 - **필드명**: `file` (ZIP 파일)
 - **파일 형식**: ZIP 아카이브 (내부에 `SKILL.md` 포함)
+- **선택 파라미터**:
+  - `tenant_id` (문자열): 테넌트 ID. 제공 시 스킬이 `scope="tenant"`로 설정됩니다.
+  - `agent_id` (문자열, 선택): 에이전트 ID (하위 호환성을 위해 유지, 검색에는 사용되지 않음)
+
+### 스킬 Scope
+
+업로드된 스킬은 두 가지 scope를 가집니다:
+
+- **Global 스킬** (`scope="global"`): 
+  - 기본 스킬 (GitHub에서 로드된 스킬)
+  - 모든 에이전트가 항상 조회 가능
+  - `tenant_id`가 없으면 자동으로 global로 설정
+
+- **Tenant 스킬** (`scope="tenant"`):
+  - 업로드된 스킬 (`tenant_id` 제공 시)
+  - 동일한 `tenant_id`에 속해야 하며
+  - 에이전트가 DB(`users.skills` 컬럼)에 명시적으로 보유한 스킬 이름만 조회 가능
 
 ### 사용 예시
 
 **cURL:**
 ```bash
+# 기본 업로드 (global 스킬)
 curl -X POST http://localhost:8765/skills/upload \
   -F "file=@my-skill.zip"
+
+# Tenant 스킬로 업로드
+curl -X POST http://localhost:8765/skills/upload \
+  -F "file=@my-skill.zip" \
+  -F "tenant_id=tenant-123"
 ```
 
 **Python:**
 ```python
 import requests
 
+# 기본 업로드 (global 스킬)
 with open("my-skill.zip", "rb") as f:
     files = {"file": ("my-skill.zip", f, "application/zip")}
     response = requests.post(
         "http://localhost:8765/skills/upload",
         files=files
+    )
+    print(response.json())
+
+# Tenant 스킬로 업로드
+with open("my-skill.zip", "rb") as f:
+    files = {"file": ("my-skill.zip", f, "application/zip")}
+    data = {"tenant_id": "tenant-123"}
+    response = requests.post(
+        "http://localhost:8765/skills/upload",
+        files=files,
+        data=data
     )
     print(response.json())
 ```
@@ -121,6 +158,8 @@ fetch('http://localhost:8765/skills/upload', {
   "message": "Skills saved to /path/to/skills and will be available after server restart"
 }
 ```
+
+**참고**: `tenant_id`를 제공한 경우, 업로드된 스킬은 `scope="tenant"`로 설정되며, 해당 테넌트의 에이전트만 `users.skills` 컬럼에 명시된 스킬 이름을 통해 접근할 수 있습니다.
 
 ### 에러 응답
 - `400`: 잘못된 파일 형식 또는 빈 파일
@@ -999,6 +1038,99 @@ print("Backup saved")
 
 ---
 
+## 11. 멀티테넌트 및 권한 관리
+
+### 스킬 Scope 시스템
+
+스킬 엔진은 두 가지 scope를 지원합니다:
+
+#### Global 스킬 (`scope="global"`)
+- 기본 스킬 (GitHub에서 로드된 스킬)
+- 모든 에이전트가 항상 조회 가능
+- `tenant_id` 없이 업로드된 스킬도 global로 설정됨
+
+#### Tenant 스킬 (`scope="tenant"`)
+- 업로드 시 `tenant_id`를 제공한 스킬
+- 다음 조건을 모두 만족해야 조회 가능:
+  1. `skill.tenant_id == tenant_id` (동일한 테넌트)
+  2. `skill.name in allowed_skill_names` (에이전트가 DB에 명시적으로 보유)
+
+### 권한 관리 원칙
+
+**중요**: 스킬 엔진은 DB를 직접 조회하지 않습니다. 권한 판단은 상위 API 서버의 책임입니다.
+
+1. **API 서버 책임**:
+   - `users` 테이블에서 에이전트 정보 조회
+   - `tenant_id`와 `skills` 컬럼(콤마로 구분된 스킬 이름 목록) 추출
+   - `allowed_skill_names` 리스트 생성
+
+2. **스킬 엔진 책임**:
+   - 제공된 `tenant_id`와 `allowed_skill_names`를 신뢰
+   - Scope 기반 필터링 수행
+
+### API 서버 통합 예시
+
+```python
+# API 서버에서 스킬 검색 호출 예시
+import requests
+
+# 1. DB에서 에이전트 정보 조회
+agent = db.query(
+    "SELECT tenant_id, skills FROM users WHERE id = ?",
+    [agent_id]
+)
+tenant_id = agent.tenant_id
+allowed_skill_names = agent.skills.split(",") if agent.skills else []
+
+# 2. MCP 핸들러를 통해 스킬 검색
+# (MCP 프로토콜 사용 시)
+mcp_response = await mcp_client.call_tool(
+    "find_helpful_skills",
+    {
+        "task_description": "analyze data",
+        "tenant_id": tenant_id,
+        "allowed_skill_names": allowed_skill_names,
+        "top_k": 3
+    }
+)
+```
+
+### 필터링 규칙
+
+검색 결과는 다음 규칙으로 필터링됩니다:
+
+```
+if skill.scope == "global":
+    include  # 항상 포함 (모든 테넌트, 모든 에이전트에게 조회 가능)
+
+elif skill.scope == "tenant":
+    include only if (
+        skill.tenant_id == tenant_id
+        and skill.name in allowed_skill_names  # 명시적으로 포함되어야만 조회 가능
+    )
+```
+
+**중요**: 업로드된 스킬(Tenant 스킬)은 `allowed_skill_names`에 **명시적으로** 포함되어야만 조회 가능합니다. 
+기본 스킬(Global 스킬)처럼 모든 테넌트나 에이전트에게 자동으로 조회되지는 않습니다.
+
+### 주의사항
+
+- `allowed_skill_names`가 `None` 또는 빈 리스트일 경우:
+  - **Tenant 스킬은 모두 제외됨** (명시적으로 허용된 스킬이 없으므로)
+  - Global 스킬만 반환됨
+
+- Tenant 스킬 접근 규칙:
+  - ✅ `allowed_skill_names`에 스킬 이름이 **명시적으로** 포함되어야만 조회 가능
+  - ❌ `allowed_skill_names`가 비어있으면 Tenant 스킬은 절대 조회되지 않음
+  - ❌ 같은 `tenant_id`라도 `allowed_skill_names`에 없으면 조회 불가
+
+- 스킬 엔진은 권한 판단을 하지 않습니다:
+  - ❌ `users` 테이블 구조를 알지 않음
+  - ❌ SQL/Supabase SDK를 호출하지 않음
+  - ✅ 제공된 `tenant_id`와 `allowed_skill_names`만 신뢰
+
+---
+
 ## 추가 참고사항
 
 - 모든 API는 JSON 형식으로 응답을 반환합니다 (다운로드 API 제외).
@@ -1006,4 +1138,5 @@ print("Backup saved")
 - 파일 업데이트/삭제 후 스킬이 자동으로 재로드되어 검색 인덱스가 업데이트됩니다.
 - 바이너리 파일은 base64 인코딩을 사용합니다.
 - 텍스트 파일은 UTF-8 인코딩을 사용합니다.
+- 멀티테넌트 환경에서는 `tenant_id`를 제공하여 스킬을 업로드하면 해당 테넌트 전용 스킬이 됩니다.
 

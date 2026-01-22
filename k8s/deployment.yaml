@@ -20,8 +20,7 @@ spec:
       containers:
         - name: claude-skills
           image: ghcr.io/uengine-oss/claude-skills:latest
-          imagePullPolicy: IfNotPresent
-          args: ["--host", "0.0.0.0", "--port", "8765"]
+          imagePullPolicy: Always
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -34,18 +33,14 @@ spec:
             httpGet:
               path: /health
               port: 8765
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: 30
+            periodSeconds: 60
           livenessProbe:
             httpGet:
               path: /health
               port: 8765
             initialDelaySeconds: 20
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
+            periodSeconds: 30
           resources:
             limits:
               cpu: 500m

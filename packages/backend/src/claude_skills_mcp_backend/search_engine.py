@@ -122,10 +122,23 @@ class SkillSearchEngine:
         self,
         query: str,
         top_k: int = 3,
-        agent_id: str | None = None,
         tenant_id: str | None = None,
+        allowed_skill_names: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Search for the most relevant skills based on a query.
+
+        This method implements scope-based filtering:
+        - Global skills (scope="global"): Always included in results
+        - Tenant skills (scope="tenant"): Only included if ALL conditions are met:
+            * skill.tenant_id == tenant_id (must match the provided tenant)
+            * skill.name in allowed_skill_names (MUST be explicitly listed)
+        
+        Important: Tenant skills (uploaded skills) are NEVER accessible unless
+        they are explicitly listed in allowed_skill_names. If allowed_skill_names
+        is None or empty, NO tenant skills will be returned (only global skills).
+
+        The skill engine does NOT perform authorization checks. It trusts
+        the provided tenant_id and allowed_skill_names from the API server.
 
         Parameters
         ----------
@@ -133,10 +146,12 @@ class SkillSearchEngine:
             The task description or query to search for.
         top_k : int, optional
             Number of top results to return, by default 3.
-        agent_id : str | None, optional
-            Filter results by agent ID. If None, no agent filtering is applied.
         tenant_id : str | None, optional
-            Filter results by tenant ID. If None, no tenant filtering is applied.
+            Tenant ID for filtering tenant-scoped skills. Required for tenant skills.
+        allowed_skill_names : list[str] | None, optional
+            List of skill names the agent is allowed to access. If None or empty,
+            NO tenant skills will be returned (only global skills). Tenant skills
+            MUST be explicitly listed in this parameter to be accessible.
 
         Returns
         -------
@@ -148,31 +163,51 @@ class SkillSearchEngine:
                 logger.warning("No skills indexed, returning empty results")
                 return []
 
-            # Apply filters to get candidate skills
-            # Note: Skills with agent_id=None and tenant_id=None are considered "public" skills
-            # and are always included in search results regardless of filters.
-            # Uploaded skills (with agent_id or tenant_id) are only included if filters match.
+            # Normalize allowed_skill_names to a set for efficient lookup
+            allowed_set = set(allowed_skill_names) if allowed_skill_names else set()
+            
+            # If allowed_skill_names is missing or empty, only global skills will be returned
+            # Tenant skills require explicit permission via allowed_skill_names
+            if not allowed_set:
+                logger.debug(
+                    f"allowed_skill_names is empty or None - only global skills will be returned "
+                    f"(tenant_id={tenant_id})"
+                )
+
+            # Apply scope-based filtering to get candidate skills
+            # This filtering happens BEFORE similarity search for efficiency
             candidate_indices = []
             for idx, skill in enumerate(self.skills):
-                # Check if this is a public skill (no agent_id or tenant_id)
-                is_public_skill = skill.agent_id is None and skill.tenant_id is None
-                
-                # Public skills are always included (no filtering)
-                if is_public_skill:
+                # Global skills (scope="global") are always included regardless of
+                # tenant_id or allowed_skill_names
+                if skill.scope == "global":
                     candidate_indices.append(idx)
                     continue
                 
-                # For uploaded skills (non-public), they must match the provided filters
-                # Both agent_id and tenant_id must match for uploaded skills
-                if skill.agent_id != agent_id or skill.tenant_id != tenant_id:
+                # Tenant skills (scope="tenant") require matching tenant_id and explicit permission
+                if skill.scope == "tenant":
+                    # Must match tenant_id
+                    if skill.tenant_id != tenant_id:
+                        continue
+                    
+                    # Tenant skills MUST be explicitly listed in allowed_skill_names
+                    # If allowed_set is empty (allowed_skill_names missing/empty),
+                    # exclude ALL tenant skills - only global skills will be returned
+                    if not allowed_set:
+                        continue
+                    
+                    # Skill name must be explicitly in allowed_skill_names
+                    if skill.name not in allowed_set:
+                        continue
+                    
+                    # Both conditions met, include this tenant skill
+                    candidate_indices.append(idx)
                     continue
-                
-                # Skill matches the filters
-                candidate_indices.append(idx)
 
             if not candidate_indices:
                 logger.info(
-                    f"No skills match filters (agent_id={agent_id}, tenant_id={tenant_id})"
+                    f"No skills match filters (tenant_id={tenant_id}, "
+                    f"allowed_skill_names={len(allowed_set) if allowed_set else 0} skills)"
                 )
                 return []
 
@@ -180,7 +215,8 @@ class SkillSearchEngine:
             top_k = min(top_k, len(candidate_indices))
 
             logger.info(
-                f"Searching for: '{query}' (top_k={top_k}, agent_id={agent_id}, tenant_id={tenant_id})"
+                f"Searching for: '{query}' (top_k={top_k}, tenant_id={tenant_id}, "
+                f"allowed_skills={len(allowed_set) if allowed_set else 0})"
             )
 
             # Generate embedding for the query
@@ -207,7 +243,9 @@ class SkillSearchEngine:
                 result["relevance_score"] = score
                 results.append(result)
 
-                logger.debug(f"Found skill: {skill.name} (score: {score:.4f})")
+                logger.debug(
+                    f"Found skill: {skill.name} (scope={skill.scope}, score: {score:.4f})"
+                )
 
             logger.info(f"Returning {len(results)} results")
             return results
@@ -236,3 +274,4 @@ class SkillSearchEngine:
         similarities = np.dot(matrix_norm, vec_norm)
 
         return similarities
+

@@ -9,7 +9,7 @@ import tempfile
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import httpx
@@ -30,10 +30,13 @@ class Skill:
         Full content of the SKILL.md file.
     source : str
         Origin of the skill (GitHub URL or local path).
+    scope : Literal["global", "tenant"]
+        Skill scope: "global" for default skills available to all agents,
+        "tenant" for uploaded skills specific to tenants.
     agent_id : str | None
-        Agent ID for agent-specific skills (optional).
+        Agent ID for agent-specific skills (optional, deprecated - use scope instead).
     tenant_id : str | None
-        Tenant ID for multi-tenant support (optional).
+        Tenant ID for multi-tenant support (required for scope="tenant" skills).
     documents : dict[str, dict[str, Any]]
         Additional documents from the skill directory.
         Keys are relative paths, values contain metadata and content.
@@ -53,6 +56,7 @@ class Skill:
         document_fetcher: Callable | None = None,
         agent_id: str | None = None,
         tenant_id: str | None = None,
+        scope: Literal["global", "tenant"] = "global",
     ):
         self.name = name
         self.description = description
@@ -63,6 +67,19 @@ class Skill:
         self._document_cache = {}
         self.agent_id = agent_id
         self.tenant_id = tenant_id
+        self.scope = scope
+        
+        # Auto-determine scope if not explicitly set
+        # If tenant_id is set, it's a tenant skill; otherwise it's global
+        if scope == "global" and tenant_id is not None:
+            # If tenant_id is provided but scope is global, set to tenant
+            self.scope = "tenant"
+        elif scope == "tenant" and tenant_id is None:
+            # If scope is tenant but no tenant_id, default to global
+            logger.warning(
+                f"Skill '{name}' has scope='tenant' but no tenant_id. Setting scope to 'global'."
+            )
+            self.scope = "global"
 
     def get_document(self, doc_path: str) -> dict[str, Any] | None:
         """Fetch document content on-demand with caching.
@@ -114,6 +131,7 @@ class Skill:
             "content": self.content,
             "source": self.source,
             "documents": self.documents,
+            "scope": self.scope,
         }
         if self.agent_id is not None:
             result["agent_id"] = self.agent_id

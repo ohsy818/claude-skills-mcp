@@ -177,16 +177,17 @@ class SkillsMCPServer:
                                 "description": "Include a list of available documents (scripts, references, assets) for each skill (default: True)",
                                 "default": True,
                             },
-                            "agent_id": {
-                                "type": "string",
-                                "description": "Agent ID to filter uploaded skills. Public skills (default skills) are always included regardless of this filter.",
-                            },
                             "tenant_id": {
                                 "type": "string",
-                                "description": "Tenant ID to filter uploaded skills. Public skills (default skills) are always included regardless of this filter.",
+                                "description": "Tenant ID for filtering tenant-scoped skills. Required for accessing tenant skills.",
+                            },
+                            "allowed_skill_names": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "List of skill names the agent is allowed to access (from agent skills column). If empty or null, only global skills will be returned.",
                             },
                         },
-                        "required": ["task_description", "agent_id", "tenant_id"],
+                        "required": ["task_description", "tenant_id", "allowed_skill_names"],
                     },
                 ),
                 Tool(
@@ -271,13 +272,17 @@ class SkillsMCPServer:
         if not task_description:
             raise ValueError("task_description is required")
 
-        agent_id = arguments.get("agent_id")
-        if not agent_id:
-            raise ValueError("agent_id is required")
-
         tenant_id = arguments.get("tenant_id")
         if not tenant_id:
             raise ValueError("tenant_id is required")
+
+        # Get allowed_skill_names from arguments (can be None or empty list)
+        # This should be provided by the API server based on users.skills column
+        allowed_skill_names = arguments.get("allowed_skill_names")
+        if allowed_skill_names is None:
+            allowed_skill_names = []
+        elif not isinstance(allowed_skill_names, list):
+            raise ValueError("allowed_skill_names must be a list of strings")
 
         top_k = arguments.get("top_k", self.default_top_k)
         list_documents = arguments.get("list_documents", True)
@@ -290,9 +295,13 @@ class SkillsMCPServer:
         if status_msg:
             response_parts.append(status_msg)
 
-        # Perform search with filters
+        # Perform search with scope-based filtering
+        # The search engine trusts tenant_id and allowed_skill_names from the API server
         results = self.search_engine.search(
-            task_description, top_k, agent_id=agent_id, tenant_id=tenant_id
+            task_description,
+            top_k,
+            tenant_id=tenant_id,
+            allowed_skill_names=allowed_skill_names if allowed_skill_names else None,
         )
 
         # Format results as text
@@ -326,8 +335,7 @@ class SkillsMCPServer:
             response_parts.append(f"\nSkill {i}: {result['name']}")
             response_parts.append(f"\nRelevance Score: {result['relevance_score']:.4f}")
             response_parts.append(f"\nSource: {result['source']}")
-            if result.get("agent_id"):
-                response_parts.append(f"\nAgent ID: {result['agent_id']}")
+            response_parts.append(f"\nScope: {result.get('scope', 'global')}")
             if result.get("tenant_id"):
                 response_parts.append(f"\nTenant ID: {result['tenant_id']}")
             response_parts.append(f"\nDescription: {result['description']}")
@@ -610,13 +618,17 @@ async def handle_search_skills(
     if not task_description:
         raise ValueError("task_description is required")
 
-    agent_id = arguments.get("agent_id")
-    if not agent_id:
-        raise ValueError("agent_id is required")
-
     tenant_id = arguments.get("tenant_id")
     if not tenant_id:
         raise ValueError("tenant_id is required")
+
+    # Get allowed_skill_names from arguments (can be None or empty list)
+    # This should be provided by the API server based on users.skills column
+    allowed_skill_names = arguments.get("allowed_skill_names")
+    if allowed_skill_names is None:
+        allowed_skill_names = []
+    elif not isinstance(allowed_skill_names, list):
+        raise ValueError("allowed_skill_names must be a list of strings")
 
     top_k = arguments.get("top_k", default_top_k)
     list_documents = arguments.get("list_documents", True)
@@ -628,9 +640,13 @@ async def handle_search_skills(
     if status_msg:
         response_parts.append(status_msg)
 
-    # Perform search with filters
+    # Perform search with scope-based filtering
+    # The search engine trusts tenant_id and allowed_skill_names from the API server
     results = search_engine.search(
-        task_description, top_k, agent_id=agent_id, tenant_id=tenant_id
+        task_description,
+        top_k,
+        tenant_id=tenant_id,
+        allowed_skill_names=allowed_skill_names if allowed_skill_names else None,
     )
 
     if not results:
@@ -662,8 +678,7 @@ async def handle_search_skills(
         response_parts.append(f"\nSkill {i}: {result['name']}")
         response_parts.append(f"\nRelevance Score: {result['relevance_score']:.4f}")
         response_parts.append(f"\nSource: {result['source']}")
-        if result.get("agent_id"):
-            response_parts.append(f"\nAgent ID: {result['agent_id']}")
+        response_parts.append(f"\nScope: {result.get('scope', 'global')}")
         if result.get("tenant_id"):
             response_parts.append(f"\nTenant ID: {result['tenant_id']}")
         response_parts.append(f"\nDescription: {result['description']}")

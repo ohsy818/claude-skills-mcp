@@ -17,6 +17,7 @@ import uvicorn
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import TextContent
 
 from .search_engine import SkillSearchEngine
@@ -34,7 +35,29 @@ from .scheduler import HourlyScheduler
 logger = logging.getLogger(__name__)
 
 # Create FastMCP server
-mcp = FastMCP("claude-skills-mcp-backend")
+# mcp = FastMCP("claude-skills-mcp-backend")
+mcp = FastMCP(
+    "claude-skills-mcp-backend",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "localhost:*",
+            "127.0.0.1:*",
+            "claude-skills:*",
+            "claude-skills:8765",
+            "claude-skills.dev.svc:*",
+            "claude-skills.dev.svc.cluster.local:*",
+        ],
+        allowed_origins=[
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "http://claude-skills:*",
+            "http://claude-skills.dev.svc:*",
+            "http://claude-skills.dev.svc.cluster.local:*",
+        ],
+    ),
+)
+
 
 # Global state
 search_engine: SkillSearchEngine | None = None
@@ -130,12 +153,15 @@ def _find_skill_directory(
     tenant_id: str | None = None, 
     agent_id: str | None = None
 ) -> tuple[Path | None, Skill | None]:
-    """Find skill directory by name, tenant_id, and agent_id in local storage.
+    """Find skill directory by name and tenant_id in local storage.
+    
+    Skills are stored at tenant level only. agent_id is used for filtering
+    but does not affect the storage path.
     
     Parameters:
         skill_name: Name of the skill to find
-        tenant_id: Optional tenant ID to filter by
-        agent_id: Optional agent ID to filter by
+        tenant_id: Optional tenant ID to filter by (affects storage path)
+        agent_id: Optional agent ID to filter by (only for metadata filtering)
     
     Returns:
         tuple[Path | None, Skill | None]: (skill_dir, skill) or (None, None) if not found
@@ -187,18 +213,15 @@ def _find_skill_directory(
                 break
     
     # If not found via search_engine, search local storage with path-based lookup
+    # Skills are stored at tenant level only (not agent level)
     if skill_dir is None or not skill_dir.exists():
-        # Build expected path based on tenant_id and agent_id
+        # Build expected path based on tenant_id only
         skill_slug = _slugify(skill_name)
         expected_paths = []
         
-        if tenant_id and agent_id:
-            # Try tenant/agent path first
-            expected_paths.append(local_root / _slugify(tenant_id) / _slugify(agent_id) / skill_slug)
         if tenant_id:
+            # Try tenant path first
             expected_paths.append(local_root / _slugify(tenant_id) / skill_slug)
-        if agent_id:
-            expected_paths.append(local_root / _slugify(agent_id) / skill_slug)
         # Also try root level (public skills)
         expected_paths.append(local_root / skill_slug)
         
@@ -399,19 +422,14 @@ async def upload_skill_archive(request):
                 logger.warning("Skipping invalid SKILL.md at %s", skill_file)
                 continue
 
-            # Build destination directory path with tenant_id and agent_id for isolation
+            # Build destination directory path with tenant_id only
+            # Skills are stored at tenant level, agents select from tenant skills
             skill_slug = _slugify(parsed.name or skill_file.parent.name)
-            if tenant_id and agent_id:
-                # Store in tenant/agent subdirectory for isolation
-                dest_dir = local_root / _slugify(tenant_id) / _slugify(agent_id) / skill_slug
-            elif tenant_id:
+            if tenant_id:
                 # Store in tenant subdirectory
                 dest_dir = local_root / _slugify(tenant_id) / skill_slug
-            elif agent_id:
-                # Store in agent subdirectory
-                dest_dir = local_root / _slugify(agent_id) / skill_slug
             else:
-                # Public skill (no tenant/agent) - store at root level
+                # Public skill (no tenant) - store at root level
                 dest_dir = local_root / skill_slug
             
             if dest_dir.exists():
@@ -428,12 +446,14 @@ async def upload_skill_archive(request):
                     skill.agent_id = agent_id
                 if tenant_id:
                     skill.tenant_id = tenant_id
+                    # If tenant_id is set, this is a tenant-scoped skill
+                    skill.scope = "tenant"
                 # Use composite key for uniqueness: (name, tenant_id, agent_id)
                 skill_key = (skill.name, tenant_id or None, agent_id or None)
                 added_skills[skill_key] = skill
                 logger.info(
                     f"Loaded skill '{skill.name}' from persistent storage: {dest_dir} "
-                    f"(agent_id={agent_id}, tenant_id={tenant_id})"
+                    f"(scope={skill.scope}, agent_id={agent_id}, tenant_id={tenant_id})"
                 )
 
         if not added_skills:
@@ -658,20 +678,15 @@ async def upload_skill_from_github(request):
                 logger.warning("Skipping invalid SKILL.md at %s", skill_file)
                 continue
             
-            # Build destination directory path with tenant_id and agent_id for isolation
+            # Build destination directory path with tenant_id only
+            # Skills are stored at tenant level, agents select from tenant skills
             skill_slug = _slugify(parsed.name or skill_file.parent.name)
             skill_name = parsed.name or skill_file.parent.name
-            if tenant_id and agent_id:
-                # Store in tenant/agent subdirectory for isolation
-                dest_dir = local_root / _slugify(tenant_id) / _slugify(agent_id) / skill_slug
-            elif tenant_id:
+            if tenant_id:
                 # Store in tenant subdirectory
                 dest_dir = local_root / _slugify(tenant_id) / skill_slug
-            elif agent_id:
-                # Store in agent subdirectory
-                dest_dir = local_root / _slugify(agent_id) / skill_slug
             else:
-                # Public skill (no tenant/agent) - store at root level
+                # Public skill (no tenant) - store at root level
                 dest_dir = local_root / skill_slug
             
             is_update = dest_dir.exists()
@@ -698,12 +713,14 @@ async def upload_skill_from_github(request):
                     skill.agent_id = agent_id
                 if tenant_id:
                     skill.tenant_id = tenant_id
+                    # If tenant_id is set, this is a tenant-scoped skill
+                    skill.scope = "tenant"
                 # Use composite key for uniqueness: (name, tenant_id, agent_id)
                 skill_key = (skill.name, tenant_id or None, agent_id or None)
                 added_skills[skill_key] = skill
                 logger.info(
                     f"Loaded skill '{skill.name}' from persistent storage: {dest_dir} "
-                    f"(agent_id={agent_id}, tenant_id={tenant_id})"
+                    f"(scope={skill.scope}, agent_id={agent_id}, tenant_id={tenant_id})"
                 )
         
         if not added_skills:
@@ -775,19 +792,24 @@ def register_mcp_tools(default_top_k: int = 3, max_content_chars: int | None = N
     )
     async def find_helpful_skills(
         task_description: str,
-        agent_id: str,
         tenant_id: str,
+        allowed_skill_names: list[str] | None = None,
         top_k: int = default_top_k,
         list_documents: bool = True,
     ) -> list[TextContent]:
-        """Search for relevant skills."""
+        """Search for relevant skills.
+        
+        Note: allowed_skill_names should be provided by the API server
+        based on the users.skills column in the database. The skill engine
+        does not perform authorization checks and trusts the provided values.
+        """
         return await handle_search_skills(
             {
                 "task_description": task_description,
                 "top_k": top_k,
                 "list_documents": list_documents,
-                "agent_id": agent_id,
                 "tenant_id": tenant_id,
+                "allowed_skill_names": allowed_skill_names or [],
             },
             search_engine,
             loading_state_global,
@@ -827,6 +849,271 @@ def register_mcp_tools(default_top_k: int = 3, max_content_chars: int | None = N
     async def list_skills() -> list[TextContent]:
         """List all loaded skills."""
         return await handle_list_skills({}, search_engine, loading_state_global)
+    
+    @mcp.tool(
+        name="delete_skill",
+        title="Delete an entire skill",
+        description=(
+            "Delete a skill and all its files from local storage. This removes the skill directory "
+            "and removes it from the search index. Use with caution as this action cannot be undone. "
+            "Requires tenant_id and agent_id if the skill is tenant/agent-scoped."
+        )
+    )
+    async def delete_skill(
+        skill_name: str,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[TextContent]:
+        """Delete an entire skill (directory and all files)."""
+        if config_global is None:
+            return [TextContent(
+                type="text",
+                text=f"Error: Backend not fully initialized"
+            )]
+        
+        # Find the skill directory
+        skill_dir, _ = _find_skill_directory(skill_name, tenant_id, agent_id)
+        if skill_dir is None:
+            return [TextContent(
+                type="text",
+                text=f"Error: Skill '{skill_name}' not found in local storage"
+            )]
+        
+        # Verify the skill directory is within the local root (security check)
+        local_root = _get_primary_local_skill_root()
+        if local_root is None:
+            return [TextContent(
+                type="text",
+                text="Error: No local skill source configured"
+            )]
+        
+        try:
+            # Ensure the skill directory is within local_root
+            skill_dir_resolved = skill_dir.resolve()
+            local_root_resolved = local_root.resolve()
+            if not str(skill_dir_resolved).startswith(str(local_root_resolved)):
+                return [TextContent(
+                    type="text",
+                    text="Error: Invalid skill path: path traversal detected"
+                )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Error: Invalid skill path: {e}"
+            )]
+        
+        if not skill_dir.exists():
+            return [TextContent(
+                type="text",
+                text=f"Error: Skill directory for '{skill_name}' does not exist"
+            )]
+        
+        try:
+            # Remove skill from search engine index first
+            try:
+                await _remove_skill_from_index(skill_name, tenant_id, agent_id)
+                logger.info(f"Removed skill '{skill_name}' from search index (tenant_id={tenant_id}, agent_id={agent_id})")
+            except Exception as e:
+                logger.warning(f"Failed to remove skill '{skill_name}' from index: {e}")
+                # Continue with directory deletion even if index removal fails
+            
+            # Delete the entire skill directory
+            shutil.rmtree(skill_dir)
+            logger.info(f"Deleted skill directory '{skill_dir}' for skill '{skill_name}'")
+            
+            return [TextContent(
+                type="text",
+                text=f"Successfully deleted skill '{skill_name}' and all its files."
+            )]
+        except Exception as exc:
+            logger.exception(f"Failed to delete skill '{skill_name}'")
+            return [TextContent(
+                type="text",
+                text=f"Error: Failed to delete skill: {exc}"
+            )]
+    
+    @mcp.tool(
+        name="delete_skill_file",
+        title="Delete a file from a skill",
+        description=(
+            "Delete a specific file from a skill. Cannot delete SKILL.md file. "
+            "The skill will be automatically reloaded after file deletion to update the search index."
+        )
+    )
+    async def delete_skill_file(
+        skill_name: str,
+        file_path: str,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[TextContent]:
+        """Delete a specific file from a skill."""
+        if config_global is None:
+            return [TextContent(
+                type="text",
+                text="Error: Backend not fully initialized"
+            )]
+        
+        # Prevent deletion of SKILL.md
+        if file_path == "SKILL.md" or file_path.endswith("/SKILL.md"):
+            return [TextContent(
+                type="text",
+                text="Error: Cannot delete SKILL.md file"
+            )]
+        
+        # Find the skill directory
+        skill_dir, _ = _find_skill_directory(skill_name, tenant_id, agent_id)
+        if skill_dir is None:
+            return [TextContent(
+                type="text",
+                text=f"Error: Skill '{skill_name}' not found in local storage"
+            )]
+        
+        # Build full file path
+        try:
+            # Prevent path traversal
+            full_file_path = skill_dir / file_path
+            # Ensure the file is within skill_dir
+            full_file_path = full_file_path.resolve()
+            skill_dir_resolved = skill_dir.resolve()
+            if not str(full_file_path).startswith(str(skill_dir_resolved)):
+                return [TextContent(
+                    type="text",
+                    text="Error: Invalid file path: path traversal detected"
+                )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Error: Invalid file path: {e}"
+            )]
+        
+        if not full_file_path.exists():
+            return [TextContent(
+                type="text",
+                text=f"Error: File '{file_path}' not found in skill '{skill_name}'"
+            )]
+        
+        if not full_file_path.is_file():
+            return [TextContent(
+                type="text",
+                text=f"Error: Path '{file_path}' is not a file"
+            )]
+        
+        try:
+            # Delete the file
+            full_file_path.unlink()
+            
+            # Reload the skill to update search index
+            if config_global:
+                try:
+                    loaded_skills = load_from_local(str(skill_dir), config_global)
+                    if loaded_skills:
+                        await _replace_skills_with_reindex(loaded_skills)
+                        logger.info(f"Reloaded skill '{skill_name}' after file deletion")
+                except Exception as e:
+                    logger.warning(f"Failed to reload skill after file deletion: {e}")
+            
+            logger.info(f"Deleted file '{file_path}' from skill '{skill_name}'")
+            return [TextContent(
+                type="text",
+                text=f"Successfully deleted file '{file_path}' from skill '{skill_name}'."
+            )]
+        except Exception as exc:
+            logger.exception(f"Failed to delete file '{file_path}' from skill '{skill_name}'")
+            return [TextContent(
+                type="text",
+                text=f"Error: Failed to delete file: {exc}"
+            )]
+    
+    @mcp.tool(
+        name="update_skill_file",
+        title="Update a file in a skill",
+        description=(
+            "Update or create a file in a skill. Can update text files directly or binary files via base64 encoding. "
+            "The skill will be automatically reloaded after file update to update the search index."
+        )
+    )
+    async def update_skill_file(
+        skill_name: str,
+        file_path: str,
+        content: str | None = None,
+        content_base64: str | None = None,
+        tenant_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[TextContent]:
+        """Update a specific file in a skill."""
+        if config_global is None:
+            return [TextContent(
+                type="text",
+                text="Error: Backend not fully initialized"
+            )]
+        
+        if content is None and content_base64 is None:
+            return [TextContent(
+                type="text",
+                text="Error: Missing 'content' or 'content_base64' parameter"
+            )]
+        
+        # Find the skill directory
+        skill_dir, _ = _find_skill_directory(skill_name, tenant_id, agent_id)
+        if skill_dir is None:
+            return [TextContent(
+                type="text",
+                text=f"Error: Skill '{skill_name}' not found in local storage"
+            )]
+        
+        # Build full file path
+        try:
+            # Prevent path traversal
+            full_file_path = skill_dir / file_path
+            # Ensure the file is within skill_dir
+            full_file_path = full_file_path.resolve()
+            skill_dir_resolved = skill_dir.resolve()
+            if not str(full_file_path).startswith(str(skill_dir_resolved)):
+                return [TextContent(
+                    type="text",
+                    text="Error: Invalid file path: path traversal detected"
+                )]
+        except Exception as e:
+            return [TextContent(
+                type="text",
+                text=f"Error: Invalid file path: {e}"
+            )]
+        
+        try:
+            # Create parent directories if needed
+            full_file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write file content
+            if content is not None:
+                # Text content
+                full_file_path.write_text(content, encoding="utf-8")
+            else:
+                # Binary content from base64
+                binary_content = base64.b64decode(content_base64)
+                full_file_path.write_bytes(binary_content)
+            
+            # Reload the skill to update search index
+            if config_global:
+                try:
+                    loaded_skills = load_from_local(str(skill_dir), config_global)
+                    if loaded_skills:
+                        await _replace_skills_with_reindex(loaded_skills)
+                        logger.info(f"Reloaded skill '{skill_name}' after file update")
+                except Exception as e:
+                    logger.warning(f"Failed to reload skill after file update: {e}")
+            
+            stat = full_file_path.stat()
+            logger.info(f"Updated file '{file_path}' in skill '{skill_name}'")
+            return [TextContent(
+                type="text",
+                text=f"Successfully updated file '{file_path}' in skill '{skill_name}'. Size: {stat.st_size} bytes."
+            )]
+        except Exception as exc:
+            logger.exception(f"Failed to update file '{file_path}' in skill '{skill_name}'")
+            return [TextContent(
+                type="text",
+                text=f"Error: Failed to update file: {exc}"
+            )]
 
 
 async def check_skill(request):
@@ -1018,7 +1305,7 @@ async def download_skill_archive(request):
 
 
 async def list_uploaded_skills(request):
-    """List all skills uploaded to local storage."""
+    """List all skills uploaded to local storage, optionally filtered by tenant_id."""
     if request.method != "GET":  # pragma: no cover - Starlette enforces methods
         return JSONResponse({"detail": "Method not allowed"}, status_code=405)
 
@@ -1038,18 +1325,49 @@ async def list_uploaded_skills(request):
             {"skills": [], "count": 0, "storage_path": str(local_root)}
         )
 
+    # Get optional tenant_id from query parameters
+    tenant_id = request.query_params.get("tenant_id")
+    
     uploaded_skills = []
     
-    # Scan local_root for skill directories
-    for skill_dir in local_root.iterdir():
-        if not skill_dir.is_dir():
-            continue
-            
-        skill_file = skill_dir / "SKILL.md"
-        if not skill_file.exists():
-            continue
-        
+    # Recursively scan for all SKILL.md files
+    skill_files = list(local_root.rglob("SKILL.md"))
+    
+    for skill_file in skill_files:
         try:
+            # Get the skill directory (parent of SKILL.md)
+            skill_dir = skill_file.parent
+            
+            # Determine tenant_id from path
+            # Path structure: local_root / tenant_id / skill_slug / SKILL.md
+            # or: local_root / skill_slug / SKILL.md (public skills)
+            try:
+                relative_path = skill_dir.relative_to(local_root)
+                path_parts = relative_path.parts
+                
+                skill_tenant_id = None
+                # If path has 2 parts (tenant_id/skill_slug), first part is tenant_id
+                # If path has 1 part (skill_slug), it's a public skill (no tenant_id)
+                if len(path_parts) == 2:
+                    skill_tenant_id = path_parts[0]
+                elif len(path_parts) == 1:
+                    skill_tenant_id = None  # Public skill
+                # If path has more than 2 parts, it might be nested incorrectly
+                # but we'll still try to extract tenant_id from first part
+                elif len(path_parts) > 2:
+                    # Check if first part looks like a tenant directory
+                    potential_tenant_dir = local_root / path_parts[0]
+                    if potential_tenant_dir.is_dir():
+                        skill_tenant_id = path_parts[0]
+            except ValueError:
+                # skill_dir is not relative to local_root, skip
+                continue
+            
+            # Filter by tenant_id if provided
+            if tenant_id is not None:
+                if skill_tenant_id != tenant_id:
+                    continue
+            
             content = skill_file.read_text(encoding="utf-8")
             parsed = parse_skill_md(content, str(skill_file))
             if parsed:
@@ -1062,17 +1380,19 @@ async def list_uploaded_skills(request):
                     "directory": skill_dir.name,
                     "file_count": file_count,
                     "path": str(skill_dir),
+                    "tenant_id": skill_tenant_id,
                 })
         except Exception as e:
-            logger.warning(f"Error reading skill from {skill_dir}: {e}")
+            logger.warning(f"Error reading skill from {skill_file}: {e}")
             continue
 
-    logger.info(f"Found {len(uploaded_skills)} uploaded skills in local storage")
+    logger.info(f"Found {len(uploaded_skills)} uploaded skills in local storage (tenant_id={tenant_id})")
     return JSONResponse(
         {
             "skills": uploaded_skills,
             "count": len(uploaded_skills),
             "storage_path": str(local_root),
+            "tenant_id": tenant_id,
         }
     )
 

@@ -55,10 +55,12 @@ docker run -d -p 8765:8765 --name claude-skills-backend ghcr.io/jinyoung/claude-
 ```bash
 # 이미지 빌드 (프로젝트 루트에서)
 docker build -t claude-skills -f packages/backend/Dockerfile .
+
 docker build -t ghcr.io/uengine-oss/claude-skills:latest -f packages/backend/Dockerfile .
 docker push ghcr.io/uengine-oss/claude-skills:latest
+kubectl rollout restart deployment/claude-skills -n dev
 
-docker tag claude-skills:latest ghcr.io/uengine-oss/claude-skills:latest
+docker tag claude-skills-mcp-backend:latest ghcr.io/uengine-oss/claude-skills:latest
 
 # 컨테이너 실행
 docker run -d -p 8765:8765 --name claude-skills claude-skills
